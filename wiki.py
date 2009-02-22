@@ -1,28 +1,3 @@
-#!/usr/bin/env python
-#
-# Copyright 2008 Google Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-"""A simple Google App Engine wiki application.
-
-The main distinguishing feature is that editing is in a WYSIWYG editor
-rather than a text editor with special syntax.  This application uses
-google.appengine.api.datastore to access the datastore.  This is a
-lower-level API on which google.appengine.ext.db depends.
-"""
-
-__author__ = 'Bret Taylor'
 
 import cgi
 import datetime
@@ -31,182 +6,180 @@ import re
 import sys
 import urllib
 import urlparse
-import wsgiref.handlers
+import logging
+
+import wikimarkup
 
 from google.appengine.api import datastore
 from google.appengine.api import datastore_types
 from google.appengine.api import users
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import template
+from google.appengine.ext.webapp.util import run_wsgi_app
 
-# Set to true if we want to have our webapp print stack traces, etc
+# for Data::Dumper-like stuff
+#import pprint
+#pp = pprint.PrettyPrinter(indent=4)
+
+#lib_path = os.path.join(os.path.dirname(__file__), 'lib')
+#sys.path.append(lib_path)
+
 _DEBUG = True
 
 class BaseRequestHandler(webapp.RequestHandler):
-  """Supplies a common template generation function.
+    def generate(self, template_name, template_values={}):
+        values = {
+            'request': self.request,
+            'user': users.get_current_user(),
+            'login_url': users.create_login_url(self.request.uri),
+            'logout_url': users.create_logout_url(self.request.uri),
+            'application_name': 'Piki',
+        }
+        values.update(template_values)
+        directory = os.path.dirname(__file__)
+        path = os.path.join(directory, os.path.join('templates', template_name))
+        self.response.out.write(template.render(path, values, debug=_DEBUG))
 
-  When you call generate(), we augment the template variables supplied with
-  the current user in the 'user' variable and the current webapp request
-  in the 'request' variable.
-  """
-  def generate(self, template_name, template_values={}):
-    values = {
-      'request': self.request,
-      'user': users.GetCurrentUser(),
-      'login_url': users.CreateLoginURL(self.request.uri),
-      'logout_url': users.CreateLogoutURL(self.request.uri),
-      'application_name': 'Wiki',
-    }
-    values.update(template_values)
-    directory = os.path.dirname(__file__)
-    path = os.path.join(directory, os.path.join('templates', template_name))
-    self.response.out.write(template.render(path, values, debug=_DEBUG))
+    def head(self, *args):
+        pass
 
-class WikiPage(BaseRequestHandler):
-  """Our one and only request handler.
+    def get(self, *args):
+        pass
 
-  We first determine which page we are editing, using "MainPage" if no
-  page is specified in the URI. We then determine the mode we are in (view
-  or edit), choosing "view" by default.
+    def post(self, *args):
+        pass
 
-  POST requests to this handler handle edit operations, writing the new page
-  to the datastore.
-  """
-  def get(self, page_name):
-    # Load the main page by default
-    if not page_name:
-      page_name = 'MainPage'
-    page = Page.load(page_name)
+class MainPageHandler(BaseRequestHandler):
+    def get(self):
+        user = users.get_current_user();
 
-    # Default to edit for pages that do not yet exist
-    if not page.entity:
-      mode = 'edit'
-    else:
-      modes = ['view', 'edit']
-      mode = self.request.get('mode')
-      if not mode in modes:
-        mode = 'view'
+        if not user:
+            self.redirect(users.create_login_url(self.request.uri))
+            return
 
-    # User must be logged in to edit
-    if mode == 'edit' and not users.GetCurrentUser():
-      self.redirect(users.CreateLoginURL(self.request.uri))
-      return
+        query = datastore.Query('Page')
+        query['owner'] = user
+        query.Order(('modified', datastore.Query.DESCENDING))
 
-    # Genertate the appropriate template
-    self.generate(mode + '.html', {
-      'page': page,
-    })
+        page_list = []
+        for entity in query.Get(100):
+            page_list.append(Page(entity['name'], entity))
 
-  def post(self, page_name):
-    # User must be logged in to edit
-    if not users.GetCurrentUser():
-      # The GET version of this URI is just the view/edit mode, which is a
-      # reasonable thing to redirect to
-      self.redirect(users.CreateLoginURL(self.request.uri))
-      return
+        self.generate('index.html', {
+            'pages': page_list,
+        })
 
-    # We need an explicit page name for editing
-    if not page_name:
-      self.redirect('/')
 
-    # Create or overwrite the page
-    page = Page.load(page_name)
-    page.content = self.request.get('content')
-    page.save()
-    self.redirect(page.view_url())
+class PageRequestHandler(BaseRequestHandler):
+    def get(self, page_name):
+        # if we don't have a user, we won't know which namespace to use (for now)
+        user = users.get_current_user()
+        if not user:
+            self.redirect(users.create_login_url(self.request.uri))
+        page_name = urllib.unquote(page_name)
+        page = Page.load(page_name, user)
+        modes = ['view', 'edit']
+        mode = self.request.get('mode')
+        if not page.entity:
+            logging.debug('page "' + page_name + '" not found, creating new instance.')
+            mode = 'edit'
+        if not mode in modes:
+            logging.debug('defaulting mode to view')
+            mode = 'view'
+        self.generate(mode + '.html', {
+            'page': page,
+        })
+
+    def post(self, page_name):
+        user = users.get_current_user()
+        if not user:
+            self.redirect(users.create_login_url(self.request.uri))
+            return
+
+        page_name = urllib.unquote(page_name)
+        page = Page.load(page_name, user)
+        page.content = self.request.get('content')
+        page.save()
+        self.redirect(page.view_url())
 
 
 class Page(object):
-  """Our abstraction for a Wiki page.
-
-  We handle all datastore operations so that new pages are handled
-  seamlessly. To create OR edit a page, just create a Page instance and
-  clal save().
-  """
-  def __init__(self, name, entity=None):
-    self.name = name
-    self.entity = entity
-    if entity:
-      self.content = entity['content']
-      if entity.has_key('user'):
-        self.user = entity['user']
-      else:
-        self.user = None
-      self.created = entity['created']
-      self.modified = entity['modified']
-    else:
-      # New pages should start out with a simple title to get the user going
-      now = datetime.datetime.now()
-      self.content = '<h1>' + cgi.escape(name) + '</h1>'
-      self.user = None
-      self.created = now
-      self.modified = now
-
-  def entity(self):
-    return self.entity
-
-  def edit_url(self):
-    return '/' + self.name + '?mode=edit'
-
-  def view_url(self):
-    return '/' + self.name
-
-  def wikified_content(self):
-    """Applies our wiki transforms to our content for HTML display.
-
-    We auto-link URLs, link WikiWords, and hide referers on links that
-    go outside of the Wiki.
+    """ A wiki page, has attributes:
+            name
+            content
+            owner
+            is_public -- implement later
     """
-    transforms = [
-      AutoLink(),
-      WikiWords(),
-      HideReferers(),
-    ]
-    content = self.content
-    for transform in transforms:
-      content = transform.run(content)
-    return content
+    def __init__(self, name, entity=None):
+        self.name = name
+        self.entity = entity
+        if entity:
+            self.content = entity['content']
+            self.owner = entity['owner']
+            self.modified = entity['modified']
+        else:
+            self.content = '= ' + self.name + " =\n\nStarting writing about " + self.name + ' here.'
 
-  def save(self):
-    """Creates or edits this page in the datastore."""
-    now = datetime.datetime.now()
-    if self.entity:
-      entity = self.entity
-    else:
-      entity = datastore.Entity('Page')
-      entity['name'] = self.name
-      entity['created'] = now
-    entity['content'] = datastore_types.Text(self.content)
-    entity['modified'] = now
+    def entity(self):
+        return self.entity
 
-    if users.GetCurrentUser():
-      entity['user'] = users.GetCurrentUser()
-    elif entity.has_key('user'):
-      del entity['user']
+    def edit_url(self):
+        return '/%s?mode=edit' % (self.name)
 
-    datastore.Put(entity)
+    def view_url(self):
+        name = self.name
+        name = urllib.quote(name)
+        return '/' + name
 
-  @staticmethod
-  def load(name):
-    """Loads the page with the given name.
+    def save(self):
+        if self.entity:
+            entity = self.entity
+            logging.debug('saving existing page ' + self.name)
+        else:
+            logging.debug('saving new page ' + self.name)
+            entity = datastore.Entity('Page')
+            entity['owner'] = users.get_current_user()
+            entity['name'] = self.name
+        entity['content'] = self.content
+        entity['modified'] = datetime.datetime.now()
+        datastore.Put(entity)
 
-    We always return a Page instance, even if the given name isn't yet in
-    the database. In that case, the Page object will be created when save()
-    is called.
-    """
-    query = datastore.Query('Page')
-    query['name ='] = name
-    entities = query.Get(1)
-    if len(entities) < 1:
-      return Page(name)
-    else:
-      return Page(name, entities[0])
+    def wikified_content(self):
+        # FIXME: check memcache?
+        content = cgi.escape(self.content)
+        # replacements here
+        transforms = [
+            AutoLink(),
+            WikiWords(),
+            HideReferers(),
+        ]
+        #content = self.content
+        content = wikimarkup.parse(content)
+        for transform in transforms:
+            content = transform.run(content, self)
+        return content
 
-  @staticmethod
-  def exists(name):
-    """Returns true if the page with the given name exists in the datastore."""
-    return Page.load(name).entity
 
+    @staticmethod
+    def load(name, owner):
+        if not owner:
+            owner = users.get_current_user()
+        query = datastore.Query('Page')
+        query['name'] = name
+        query['owner'] = owner
+        entities = query.Get(1)
+        if len(entities) < 1:
+            return Page(name)
+        else:
+            return Page(name, entities[0])
+
+    @staticmethod
+    def exists(name, owner):
+        logging.debug('looking up ' + name)
+        if not owner:
+            logging.debug('Were not given a user when looking up ' + name)
+            owner = users.get_current_user()
+        return Page.load(name, owner).entity
 
 class Transform(object):
   """Abstraction for a regular expression transform.
@@ -223,11 +196,16 @@ class Transform(object):
   up a WikiWord to see if the page exists before determining if the WikiWord
   should be a link.
   """
-  def run(self, content):
+  def run(self, content, page):
     """Runs this transform over the given content.
 
-    We return a new string that is the result of this transform.
+    Args:
+      content: The string data to apply a transformation to.
+
+    Returns:
+      A new string that is the result of this transform.
     """
+    self.page = page
     parts = []
     offset = 0
     for match in self.regexp.finditer(content):
@@ -239,19 +217,24 @@ class Transform(object):
 
 
 class WikiWords(Transform):
-  """Translates WikiWords to links.
+    """Translates WikiWords to links.
 
-  We look up all words, and we only link those words that currently exist.
-  """
-  def __init__(self):
-    self.regexp = re.compile(r'[A-Z][a-z]+([A-Z][a-z]+)+')
+    We look up all words, and we only link those words that currently exist.
+    """
+    def __init__(self):
+        self.regexp = re.compile(r'[A-Z][a-z]+([A-Z][a-z]+)+')
 
-  def replace(self, match):
-    wikiword = match.group(0)
-    if Page.exists(wikiword):
-      return '<a class="wikiword" href="/%s">%s</a>' % (wikiword, wikiword)
-    else:
-      return wikiword
+    def replace(self, match):
+        wikiword = match.group(0)
+        #return '<a class="wikiword" href="/%s">%s</a>' % (wikiword, wikiword)
+        #return '<a class="wikiword missing_wikiword" href="/%s">%s</a>' % (wikiword, wikiword)
+        logging.debug('About to look up wikiword "' + wikiword + '"')
+        if wikiword == self.page.name:
+            return wikiword
+        if Page.exists(wikiword, self.page.owner):
+            return '<a class="wikiword" href="/%s">%s</a>' % (wikiword, wikiword)
+        else:
+            return '<a class="wikiword missing" href="/%s">%s?</a>' % (wikiword, wikiword)
 
 
 class AutoLink(Transform):
@@ -275,15 +258,43 @@ class HideReferers(Transform):
     url = match.group(1)
     scheme, host, path, parameters, query, fragment = urlparse.urlparse(url)
     url = 'http://www.google.com/url?sa=D&amp;q=' + urllib.quote(url)
-    return 'href="' + url + '"'
+    return 'href="%s"' % (url,)
 
 
 def main():
-  application = webapp.WSGIApplication([
-    ('/(.*)', WikiPage),
-  ], debug=_DEBUG)
-  wsgiref.handlers.CGIHandler().run(application)
-
+    logging.getLogger().setLevel(logging.DEBUG)
+    application = webapp.WSGIApplication(
+            #[('/', MainPageHandler)],
+            [
+                ('/', MainPageHandler),
+                ('/(.*)', PageRequestHandler),
+            ],
+            debug=_DEBUG,
+    )
+    run_wsgi_app(application)
 
 if __name__ == '__main__':
-  main()
+    main()
+
+
+
+"""
+# Models
+class Owner(db.Model):
+    user = db.UserProperty(required=True)
+    namespace = db.TextProperty()
+
+class Page(db.Model):
+    owner = db.UserProperty(required=True)
+    name = db.StringProperty(required=True)
+    content = db.StringProperty()
+    is_public = db.BooleanProperty(default=False)
+
+    def load(name):
+        query = Page.gql("WHERE owner = :owner AND name = :name", owner=users.get_current_user(), name=name)
+        return query.fetch
+
+
+
+
+"""

@@ -5,32 +5,57 @@
     <title>{% block title %}{{ application_name }}{% endblock %}</title>
     <link href="/static/css/base.css" rel="stylesheet" type="text/css"/>
     <link href="/static/css/chrome.css" rel="stylesheet" type="text/css"/>
+    <script src="http://www.google.com/jsapi"></script>
+    <script>
+        google.load("prototype", "1.6.0.3");
+    </script>
     <script type="text/javascript">
-
-    function NewPage() {
-      var pageName = window.prompt("Enter the WikiName of your new page:");
-      if (pageName) {
-        location.href = pageName + "?mode=edit";
+      function SubmitNewPageForm() {
+        var page_name = $('NewPageName').value;
+        if (page_name.length == 0) {
+          return false;
+        }
+        if (page_name.length == 1) {
+          alert("Sorry, one-character urls are reserved.");
+          return false;
+        }
+        var i = 0;
+        // don't allow wiki pages with leading slashes
+        while (page_name.charAt(i) == '/') {
+          i++;
+        }
+        page_name = "-".times(i) + page_name.substring(i);
+        location.href = '/' + page_name + "?mode=edit";
+        return false;
       }
-    }
-
     </script>
     {% block head %}{% endblock %}
   </head>
   <body>
     <div id="header">
-      <div class="top">
-        <div class="login">
+      <span class="title">
+        <a style="text-decoration: none; font-weight: bold; color: #000000;" href="/">Piki, the P<span style="font-weight: normal; color: #888888;">ersonal w</span>iki</a>
+      </span>
+
+      <span class="page-tools">
+        <span class="tool">
           {% if user %}
             <span class="item nickname">{{ user.nickname }}</span> |
             <span class="item"><a href="{{ logout_url|escape }}">Sign out</a></span>
           {% else %}
             <span class="item"><a href="{{ login_url|escape }}">Sign in</a></span>
           {% endif %}
-        </div>
-        <div class="title"><a href="/"><img src="/static/images/logo.png" alt="Google Wiki"/></a></div>
+        </span>
+
+        <span class="tool"><form onsubmit="SubmitNewPageForm(); return false;"><input type="text" id="NewPageName" name="NewPageName" value=""><input type="submit" value="New Page"/></form></span>
+        {% block buttons %}{% endblock %}
+      </span>
+
       </div>
-      <div class="bottom">
+
+    </div>
+    <div id="content" style="clear: both;">{% block body %}{% endblock %}</div>
+    <div id="footer">
         <div class="attribution">
           {% if page.entity %}
             Edited on {{ page.entity.modified|date:"D, M j, Y \a\t P" }} by
@@ -41,12 +66,6 @@
             {% endif %}
           {% endif %}
         </div>
-        <div class="buttons"><span class="item"><input type="button" value="New Page" onclick="NewPage()"/></span>{% block buttons %}{% endblock %}</div>
-        <div style="clear: both"></div>
-      </div>
-    </div>
-    <div id="body">{% block body %}{% endblock %}</div>
-    <div id="footer">
     </div>
   </body>
 </html>
