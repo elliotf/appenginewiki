@@ -4,21 +4,29 @@ body {
   margin: 0;
 }
 
+.tool form {
+    display: inline;
+}
+
+textarea {
+    height: 80%;
+    margin: 0px;
+    border: 0px solid #000;
+    border-bottom: 1px solid #aac;
+    background-color: #fff;
+}
+
 #header .title {
     padding: 5px;
-    float: left;
+    font-weight: bold;
 }
 
 #header .page-tools .tool {
-    float: right;
     padding: 5px;
+    display: inline;
 }
 
 .edit-tools {
-    padding: 5px;
-}
-
-#content {
     padding: 5px;
 }
 
@@ -35,15 +43,20 @@ body {
 }
 */
 
-#footer {
+#footer, #header {
     border-top: 1px solid #aac;
     border-bottom: 1px solid #aac;
     background-color: #eef;
     padding: 4px;
-    margin-top: 2px;
+    padding-left: 10px;
 }
 
 /* DECORATION */
+
+#header ul {
+    margin: 0px;
+    padding: 0px;
+}
 
 a {
     text-decoration: none;

@@ -151,7 +151,7 @@ class Page(object):
         return self.entity
 
     def edit_url(self):
-        return '/%s?mode=edit' % (self.name)
+        return '/%s?mode=edit' % (urllib.quote(self.name))
 
     def view_url(self):
         name = self.name
@@ -167,13 +167,13 @@ class Page(object):
             entity = datastore.Entity('Page')
             entity['owner'] = users.get_current_user()
             entity['name'] = self.name
-        entity['content'] = self.content
+        entity['content'] = datastore_types.Text(self.content)
         entity['modified'] = datetime.datetime.now()
         datastore.Put(entity)
 
     def wikified_content(self):
         # FIXME: check memcache?
-        content = cgi.escape(self.content)
+        content = self.content
         # replacements here
         transforms = [
             AutoLink(),
@@ -249,12 +249,10 @@ class WikiWords(Transform):
     We look up all words, and we only link those words that currently exist.
     """
     def __init__(self):
-        self.regexp = re.compile(r'[A-Z][a-z]+([A-Z][a-z]+)+')
+        self.regexp = re.compile(r'(\w+[/\-_])?[A-Z][a-z]+([A-Z][a-z]+)+')
 
     def replace(self, match):
         wikiword = match.group(0)
-        #return '<a class="wikiword" href="/%s">%s</a>' % (wikiword, wikiword)
-        #return '<a class="wikiword missing_wikiword" href="/%s">%s</a>' % (wikiword, wikiword)
         logging.debug('About to look up wikiword "' + wikiword + '"')
         if wikiword == self.page.name:
             return wikiword

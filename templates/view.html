@@ -8,10 +8,15 @@
   </style>
 {% endblock %}
 
+{% block buttons %}
+<form action="{{ page.edit_url }}">
+    <input type="hidden" name="mode" value="edit"/>
+    <input type="submit" value="Edit this page"/>
+</form>
+{% endblock %}
 
 {% block title %}{{ application_name }} - {{ page.name|escape }}{% endblock %}
 
-{% block buttons %}<span class="tool"><a href="{{ page.edit_url|escape }}">Edit this page</a></span>{% endblock %}
 
 {% block body %}
   {{ page.wikified_content }}

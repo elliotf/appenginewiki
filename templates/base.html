@@ -32,40 +32,39 @@
     {% block head %}{% endblock %}
   </head>
   <body>
-    <div id="header">
-      <span class="title">
-        <a style="text-decoration: none; font-weight: bold; color: #000000;" href="/">Piki, the P<span style="font-weight: normal; color: #888888;">ersonal w</span>iki</a>
-      </span>
-
-      <span class="page-tools">
-        <span class="tool">
-          {% if user %}
-            <span class="item nickname">{{ user.nickname }}</span> |
-            <span class="item"><a href="{{ logout_url|escape }}">Sign out</a></span>
-          {% else %}
-            <span class="item"><a href="{{ login_url|escape }}">Sign in</a></span>
-          {% endif %}
-        </span>
-
-        <span class="tool"><form onsubmit="SubmitNewPageForm(); return false;"><input type="text" id="NewPageName" name="NewPageName" value=""><input type="submit" value="New Page"/></form></span>
-        {% block buttons %}{% endblock %}
-      </span>
+      <div id="header">
+        <ul class="page-tools">
+            <li class="tool">
+                <a class="title" href="/">lilwiki</a>
+            </li>
+            <li class="tool">
+              {% if user %}
+                <span class="item nickname">{{ user.nickname }}</span> |
+                <span class="item"><a href="{{ logout_url|escape }}">Sign out</a></span>
+              {% else %}
+                <span class="item"><a href="{{ login_url|escape }}">Sign in</a></span>
+              {% endif %}
+            </li>
+            <li class="tool">
+            <form onsubmit="SubmitNewPageForm(); return false;">
+                <input type="text" id="NewPageName" name="NewPageName" value=""/>
+                <input type="submit" value="New Page"/>
+            </form>
+            {% block buttons %}{% endblock %}
+            </li>
+        </ul>
 
       </div>
 
     </div>
     <div id="content" style="clear: both;">{% block body %}{% endblock %}</div>
+    {% if page.entity %}
     <div id="footer">
         <div class="attribution">
-          {% if page.entity %}
-            Edited on {{ page.entity.modified|date:"D, M j, Y \a\t P" }} by
-            {% if page.user %}
-              {{ page.user.nickname }}
-            {% else %}
-              an anonymous user
-            {% endif %}
-          {% endif %}
+            Last edited on {{ page.entity.modified|date:"D, M j, Y \a\t P" }} GMT
         </div>
     </div>
+    {% endif %}
   </body>
+  {% block script %}{% endblock %}
 </html>

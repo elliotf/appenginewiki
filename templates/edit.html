@@ -4,10 +4,32 @@
 
 {% block body %}
   <form action="{{ page.edit_url|escape }}" method="post">
-    <div><textarea rows="10" cols="50" id="content" style="width: 100%; height: 400px" name="content">{{ page.content|escape }}</textarea></div>
+    <div><textarea rows="20" cols="50" id="edit_textarea" style="width: 100%; height: 80%" name="content">{{ page.content|escape }}</textarea></div>
     <div class="edit-tools">
       <span class="tool"><input style="font-weight: bold" type="submit" value="Save Changes"/></span>
       <span class="tool"><a href="{{ page.view_url|escape }}">Cancel</a>
     </div>
   </form>
+{% endblock %}
+
+{% block script %}
+    <script type="text/javascript">
+      function enlarge_textarea_to_fit_window() {
+        var html_height = document.body.scrollHeight;
+        //var window_height = window.innerHeight;
+        var window_height = document.documentElement.clientHeight;
+
+        var to_resize = $('edit_textarea');
+        if (html_height < window_height) {
+          to_resize.style.height = (to_resize.getHeight() - 1) + (window_height - html_height) + 'px';
+        } else if (html_height > window_height) {
+          if (html_height > 400) {
+            to_resize.style.height = '400px';
+          }
+        }
+
+      }
+      Event.observe(window, 'load', function () { enlarge_textarea_to_fit_window() });
+      Event.observe(window, 'resize', function () { enlarge_textarea_to_fit_window() });
+    </script>
 {% endblock %}
