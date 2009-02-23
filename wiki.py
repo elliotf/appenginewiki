@@ -60,7 +60,7 @@ class BaseRequestHandler(webapp.RequestHandler):
             'user': users.get_current_user(),
             'login_url': users.create_login_url(self.request.uri),
             'logout_url': users.create_logout_url(self.request.uri),
-            'application_name': 'Piki',
+            'application_name': 'lilwiki',
         }
         values.update(template_values)
         directory = os.path.dirname(__file__)
