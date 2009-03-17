@@ -21,7 +21,7 @@ textarea {
     font-weight: bold;
 }
 
-#header .page-tools .tool {
+#header .page-tools .tool, #footer .page-tools .tool {
     padding: 5px;
     display: inline;
 }
@@ -30,7 +30,7 @@ textarea {
     padding: 5px;
 }
 
-#content a[href ^="http"] {
+#content a[href ^="http"], a[href ^="http"].external-link {
     color: #36b;
     background: url(/static/images/external.png) center right no-repeat;
     padding-right: 13px;
@@ -53,7 +53,7 @@ textarea {
 
 /* DECORATION */
 
-#header ul {
+#header ul, #footer ul {
     margin: 0px;
     padding: 0px;
 }

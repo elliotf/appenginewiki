@@ -58,13 +58,21 @@
 
     </div>
     <div id="content" style="clear: both;">{% block body %}{% endblock %}</div>
-    {% if page.entity %}
     <div id="footer">
-        <div class="attribution">
+      <ul class="page-tools">
+        <li class="tool">
+          <a class="external-link" href="http://en.wikipedia.org/wiki/Wikipedia:Cheatsheet">Markup Guide</a>
+        </li>
+        <li class="tool">
+          <!-- <a href="/static/help.html">Help information</a> -->
+        </li>
+        {% if page.entity %}
+        <li class="tool">
             Last edited on {{ page.entity.modified|date:"D, M j, Y \a\t P" }} GMT
-        </div>
+        </li>
+        {% endif %}
+      </ul>
     </div>
-    {% endif %}
   </body>
   {% block script %}{% endblock %}
 </html>

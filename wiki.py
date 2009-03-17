@@ -172,20 +172,19 @@ class Page(object):
         datastore.Put(entity)
 
     def wikified_content(self):
-        # FIXME: check memcache?
-        content = self.content
+        # TODO: check memcache for rendered page?
+
         # replacements here
         transforms = [
             AutoLink(),
             WikiWords(),
             HideReferers(),
         ]
-        #content = self.content
+        content = self.content
         content = wikimarkup.parse(content)
         for transform in transforms:
             content = transform.run(content, self)
         return content
-
 
     @staticmethod
     def load(name, owner):
@@ -246,19 +245,23 @@ class Transform(object):
 class WikiWords(Transform):
     """Translates WikiWords to links.
 
-    We look up all words, and we only link those words that currently exist.
     """
     def __init__(self):
-        self.regexp = re.compile(r'(\w+[/\-_])?[A-Z][a-z]+([A-Z][a-z]+)+')
+        self.regexp = re.compile(r'(?<![A-Za-z])[A-Z][a-z]*([A-Z][a-z]+/?)+(?P<link_close>[^<]*</[Aa]>)?')
 
     def replace(self, match):
         wikiword = match.group(0)
-        logging.debug('About to look up wikiword "' + wikiword + '"')
+        if (match.group('link_close')):
+            # we're inside a link element, so don't rewrite
+            return wikiword
         if wikiword == self.page.name:
+            # don't link to the current page
             return wikiword
         if Page.exists(wikiword, self.page.owner):
+            # link to that page
             return '<a class="wikiword" href="/%s">%s</a>' % (wikiword, wikiword)
         else:
+            # link to that page, making it clear it does not exist.
             return '<a class="wikiword missing" href="/%s">%s?</a>' % (wikiword, wikiword)
 
 
